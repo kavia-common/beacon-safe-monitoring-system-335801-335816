@@ -1,5 +1,5 @@
 import { createApiClient } from "./client";
-import type { Device, LoginResponse, ProfileResponse } from "../types";
+import type { Device, LoginResponse, ProfileResponse, UpdateSettingsRequest } from "../types";
 
 export interface LoginRequest {
   username: string;
@@ -43,6 +43,16 @@ export function beaconSafeApi(params: { token?: string | null; baseUrl?: string 
         method: "GET",
         path: "/me",
         operation: "me.get"
+      });
+    },
+
+    // PUBLIC_INTERFACE
+    async updateSettings(body: UpdateSettingsRequest): Promise<ProfileResponse> {
+      return client.request<ProfileResponse>({
+        method: "PATCH",
+        path: "/settings",
+        operation: "settings.update",
+        body
       });
     }
   };

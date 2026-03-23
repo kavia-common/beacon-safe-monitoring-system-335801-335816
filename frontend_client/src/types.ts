@@ -21,6 +21,17 @@ export interface LoginResponse {
   user: User;
 }
 
+export interface Preferences {
+  theme: ThemeMode;
+}
+
 export interface ProfileResponse {
   user: User;
+  preferences: Preferences;
+}
+
+export interface UpdateSettingsRequest {
+  name?: string | null;
+  email?: string | null;
+  theme?: ThemeMode | null;
 }

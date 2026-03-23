@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import type { Device, ThemeMode, User } from "../types";
+import type { Device, ThemeMode, UpdateSettingsRequest, User } from "../types";
 import { beaconSafeApi } from "../api/endpoints";
 import { ApiError } from "../api/client";
 import { loadTheme, loadToken, loadUser, saveTheme, saveToken, saveUser } from "../utils/storage";
@@ -21,6 +21,8 @@ interface AppState {
   refreshDevices: () => Promise<void>;
   // PUBLIC_INTERFACE
   refreshProfile: () => Promise<void>;
+  // PUBLIC_INTERFACE
+  updateSettings: (params: UpdateSettingsRequest) => Promise<void>;
   // PUBLIC_INTERFACE
   setTheme: (theme: ThemeMode) => void;
 }
@@ -47,6 +49,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const api = useMemo(() => beaconSafeApi({ token }), [token]);
 
+  function formatError(err: unknown, fallback: string): string {
+    return err instanceof ApiError
+      ? `${err.message}${err.details ? `: ${JSON.stringify(err.details)}` : ""}`
+      : fallback;
+  }
+
+  function maybeLogoutOnUnauthorized(err: unknown) {
+    if (err instanceof ApiError && err.status === 401) {
+      // Token is missing/invalid; clear local auth so ProtectedRoute can redirect to /login.
+      logout();
+    }
+  }
+
   async function login(params: { username: string; password: string }) {
     setIsAuthenticating(true);
     setErrorMessage(null);
@@ -59,11 +74,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       saveToken(res.token);
       saveUser(res.user);
     } catch (err) {
-      const msg =
-        err instanceof ApiError
-          ? `${err.message}${err.details ? `: ${JSON.stringify(err.details)}` : ""}`
-          : "Login failed";
-      setErrorMessage(msg);
+      setErrorMessage(formatError(err, "Login failed"));
       throw err;
     } finally {
       setIsAuthenticating(false);
@@ -86,11 +97,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const devices = await api.getDevices();
       setDeviceList(devices);
     } catch (err) {
-      const msg =
-        err instanceof ApiError
-          ? `${err.message}${err.details ? `: ${JSON.stringify(err.details)}` : ""}`
-          : "Failed to load devices";
-      setErrorMessage(msg);
+      maybeLogoutOnUnauthorized(err);
+      setErrorMessage(formatError(err, "Failed to load devices"));
       throw err;
     }
   }
@@ -101,12 +109,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const profile = await api.getMe();
       setUser(profile.user);
       saveUser(profile.user);
+      if (profile.preferences?.theme) {
+        setThemeState(profile.preferences.theme);
+      }
     } catch (err) {
-      const msg =
-        err instanceof ApiError
-          ? `${err.message}${err.details ? `: ${JSON.stringify(err.details)}` : ""}`
-          : "Failed to load profile";
-      setErrorMessage(msg);
+      maybeLogoutOnUnauthorized(err);
+      setErrorMessage(formatError(err, "Failed to load profile"));
+      throw err;
+    }
+  }
+
+  async function updateSettings(params: UpdateSettingsRequest) {
+    setErrorMessage(null);
+    try {
+      const profile = await api.updateSettings(params);
+      setUser(profile.user);
+      saveUser(profile.user);
+      if (profile.preferences?.theme) {
+        setThemeState(profile.preferences.theme);
+      }
+    } catch (err) {
+      maybeLogoutOnUnauthorized(err);
+      setErrorMessage(formatError(err, "Failed to update settings"));
       throw err;
     }
   }
@@ -126,6 +150,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     logout,
     refreshDevices,
     refreshProfile,
+    updateSettings,
     setTheme
   };
 
