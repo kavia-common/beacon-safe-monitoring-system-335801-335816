@@ -10,10 +10,14 @@
 
 # production
 /build
+/dist
 
 # misc
 .DS_Store
 .env
+
+# vite
+.vite
 
 npm-debug.log*
 yarn-debug.log*
